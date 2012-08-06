@@ -7,6 +7,7 @@
     GPUImageMovieWriter *synchronizedMovieWriter;
     CVOpenGLESTextureCacheRef coreVideoTextureCache;
     AVAssetReader *reader;
+	float _frameRate;
 }
 
 - (void)processAsset;
@@ -18,6 +19,7 @@
 @synthesize url = _url;
 @synthesize asset = _asset;
 @synthesize runBenchmark = _runBenchmark;
+@synthesize frameRate = _frameRate;
 
 #pragma mark -
 #pragma mark Initialization and teardown
@@ -125,9 +127,15 @@
 
     NSMutableDictionary *outputSettings = [NSMutableDictionary dictionary];
     [outputSettings setObject: [NSNumber numberWithInt:kCVPixelFormatType_32BGRA]  forKey: (NSString*)kCVPixelBufferPixelFormatTypeKey];
-    // Maybe set alwaysCopiesSampleData to NO on iOS 5.0 for faster video decoding
-    AVAssetReaderTrackOutput *readerVideoTrackOutput = [AVAssetReaderTrackOutput assetReaderTrackOutputWithTrack:[[self.asset tracksWithMediaType:AVMediaTypeVideo] objectAtIndex:0] outputSettings:outputSettings];
+	AVAssetTrack *videoTrack = [[self.asset tracksWithMediaType:AVMediaTypeVideo] objectAtIndex:0];
+	// #357
+	_frameRate = videoTrack.nominalFrameRate;
+    AVAssetReaderTrackOutput *readerVideoTrackOutput = [AVAssetReaderTrackOutput assetReaderTrackOutputWithTrack:videoTrack outputSettings:outputSettings];
     [reader addOutput:readerVideoTrackOutput];
+	
+	// The buffer is not being modified so no need to copy it (only works on iOS5 and above)
+	if ([reader respondsToSelector:@selector(setAlwaysCopiesSampleData:)])
+		readerVideoTrackOutput.alwaysCopiesSampleData = NO;
 
     NSArray *audioTracks = [self.asset tracksWithMediaType:AVMediaTypeAudio];
     BOOL shouldRecordAudioTrack = (([audioTracks count] > 0) && (weakSelf.audioEncodingTarget != nil) );

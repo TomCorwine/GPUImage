@@ -14,6 +14,10 @@
  */
 @property(readwrite, nonatomic) BOOL runBenchmark;
 
+/** This is the nominal playback frame rate (in frames per second) of the source video
+ */
+@property (readonly) float frameRate;
+
 /// @name Initialization and teardown
 - (id)initWithAsset:(AVAsset *)asset;
 - (id)initWithURL:(NSURL *)url;

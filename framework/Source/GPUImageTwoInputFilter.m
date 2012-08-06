@@ -152,6 +152,14 @@ NSString *const kGPUImageTwoInputTextureVertexShaderString = SHADER_STRING
     }
 }
 
+- (void)removeAllTargets
+{
+	// #327
+	hasSetFirstTexture = NO;
+	
+	[super removeAllTargets];
+}
+
 - (CGSize)rotatedSize:(CGSize)sizeToRotate forIndex:(NSInteger)textureIndex;
 {
     CGSize rotatedSize = sizeToRotate;
