@@ -93,7 +93,7 @@ void GPUImageCreateResizedSampleBuffer(CVPixelBufferRef cameraFrame, CGSize fina
     return;
 }*/
 
-- (void)capturePhotoAsImageProcessedUpToFilter:(GPUImageOutput<GPUImageInput> *)finalFilterInChain withCompletionHandler:(void (^)(UIImage *processedImage, NSError *error))block;
+- (void)capturePhotoAsImageWithFirstFilter:(GPUImageOutput<GPUImageInput> *)firstFilter secondFilter:(GPUImageOutput<GPUImageInput> *)secondFilter withCompletionHandler:(GPUImageStillCameraImageBlock)block;
 {
     [photoOutput captureStillImageAsynchronouslyFromConnection:[[photoOutput connections] objectAtIndex:0] completionHandler:^(CMSampleBufferRef imageSampleBuffer, NSError *error) {
 
@@ -118,9 +118,10 @@ void GPUImageCreateResizedSampleBuffer(CVPixelBufferRef cameraFrame, CGSize fina
             [self captureOutput:photoOutput didOutputSampleBuffer:imageSampleBuffer fromConnection:[[photoOutput connections] objectAtIndex:0]];
         }        
 
-        UIImage *filteredPhoto = [finalFilterInChain imageFromCurrentlyProcessedOutput];
+		UIImage *firstPhoto = [firstFilter imageFromCurrentlyProcessedOutput];
+        UIImage *secondPhoto = [secondFilter imageFromCurrentlyProcessedOutput];
         
-        block(filteredPhoto, error);        
+        block(firstPhoto, secondPhoto, error);
     }];
     
     return;
