@@ -1,10 +1,11 @@
 #import <UIKit/UIKit.h>
 
 #import "GPUImageOpenGLESContext.h"
-#import "GLProgram.h"
 
 void runOnMainQueueWithoutDeadlocking(void (^block)(void));
-void report_memory(NSString *tag);
+void runSynchronouslyOnVideoProcessingQueue(void (^block)(void));
+void runAsynchronouslyOnVideoProcessingQueue(void (^block)(void));
+void reportAvailableMemoryForGPUImage(NSString *tag);
 
 @class GPUImageMovieWriter;
 
@@ -85,11 +86,13 @@ void report_memory(NSString *tag);
 /** Retreives the currently processed image as a UIImage.
  */
 - (UIImage *)imageFromCurrentlyProcessedOutput;
+- (CGImageRef)newCGImageFromCurrentlyProcessedOutput;
 
 /** Convenience method to retreive the currently processed image with a different orientation.
  @param imageOrientation Orientation for image
  */
 - (UIImage *)imageFromCurrentlyProcessedOutputWithOrientation:(UIImageOrientation)imageOrientation;
+- (CGImageRef)newCGImageFromCurrentlyProcessedOutputWithOrientation:(UIImageOrientation)imageOrientation;
 
 /** Convenience method to process an image with a filter.
  
@@ -98,6 +101,9 @@ void report_memory(NSString *tag);
  @param imageToFilter Image to be filtered
  */
 - (UIImage *)imageByFilteringImage:(UIImage *)imageToFilter;
+- (CGImageRef)newCGImageByFilteringImage:(UIImage *)imageToFilter;
+- (CGImageRef)newCGImageByFilteringCGImage:(CGImageRef)imageToFilter;
+- (CGImageRef)newCGImageByFilteringCGImage:(CGImageRef)imageToFilter orientation:(UIImageOrientation)orientation;
 
 - (void)prepareForImageCapture;
 

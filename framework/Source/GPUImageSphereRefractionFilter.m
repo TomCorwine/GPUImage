@@ -81,9 +81,16 @@ NSString *const kGPUImageSphereRefractionFragmentShaderString = SHADER_STRING
     CGSize oldInputSize = inputTextureSize;
     [super setInputSize:newSize atIndex:textureIndex];
 
-    if (!CGSizeEqualToSize(oldInputSize, inputTextureSize))
+    if (!CGSizeEqualToSize(oldInputSize, inputTextureSize) && (!CGSizeEqualToSize(newSize, CGSizeZero)) )
     {
-        [self setAspectRatio:(inputTextureSize.width / inputTextureSize.height)];
+        if (GPUImageRotationSwapsWidthAndHeight(inputRotation))
+        {
+            [self setAspectRatio:(inputTextureSize.width / inputTextureSize.height)];
+        }
+        else
+        {
+            [self setAspectRatio:(inputTextureSize.height / inputTextureSize.width)];
+        }
     }
 }
 
@@ -100,43 +107,29 @@ NSString *const kGPUImageSphereRefractionFragmentShaderString = SHADER_STRING
 {
     _radius = newValue;
     
-    [GPUImageOpenGLESContext useImageProcessingContext];
-    [filterProgram use];
-    glUniform1f(radiusUniform, _radius);
+    [self setFloat:_radius forUniform:radiusUniform program:filterProgram];
 }
 
 - (void)setCenter:(CGPoint)newValue;
 {
     _center = newValue;
     
-    [GPUImageOpenGLESContext useImageProcessingContext];
-    [filterProgram use];
-    
     CGPoint rotatedPoint = [self rotatedPoint:_center forRotation:inputRotation];
-    
-    GLfloat centerPosition[2];
-    centerPosition[0] = rotatedPoint.x;
-    centerPosition[1] = rotatedPoint.y;
-    
-    glUniform2fv(centerUniform, 1, centerPosition);
+    [self setPoint:rotatedPoint forUniform:centerUniform program:filterProgram];
 }
 
 - (void)setAspectRatio:(CGFloat)newValue;
 {
     _aspectRatio = newValue;
     
-    [GPUImageOpenGLESContext useImageProcessingContext];
-    [filterProgram use];
-    glUniform1f(aspectRatioUniform, _aspectRatio);
+    [self setFloat:_aspectRatio forUniform:aspectRatioUniform program:filterProgram];
 }
 
 - (void)setRefractiveIndex:(CGFloat)newValue;
 {
     _refractiveIndex = newValue;
-    
-    [GPUImageOpenGLESContext useImageProcessingContext];
-    [filterProgram use];
-    glUniform1f(refractiveIndexUniform, _refractiveIndex);
+
+    [self setFloat:_refractiveIndex forUniform:refractiveIndexUniform program:filterProgram];
 }
 
 @end

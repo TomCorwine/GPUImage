@@ -42,22 +42,9 @@
 #pragma mark -
 #pragma mark Still image processing
 
-- (UIImage *)imageFromCurrentlyProcessedOutputWithOrientation:(UIImageOrientation)imageOrientation;
+- (CGImageRef)newCGImageFromCurrentlyProcessedOutputWithOrientation:(UIImageOrientation)imageOrientation;
 {
-    return [self.terminalFilter imageFromCurrentlyProcessedOutputWithOrientation:imageOrientation];
-}
-
-- (UIImage *)imageByFilteringImage:(UIImage *)imageToFilter;
-{
-    GPUImagePicture *stillImageSource = [[GPUImagePicture alloc] initWithImage:imageToFilter];
-    
-    [stillImageSource addTarget:self];
-    [stillImageSource processImage];
-    
-    UIImage *processedImage = [self.terminalFilter imageFromCurrentlyProcessedOutput];
-    
-    [stillImageSource removeTarget:self];
-    return processedImage;
+    return [self.terminalFilter newCGImageFromCurrentlyProcessedOutputWithOrientation:imageOrientation];
 }
 
 - (void)prepareForImageCapture;
@@ -86,6 +73,16 @@
 - (void)removeAllTargets;
 {
     [_terminalFilter removeAllTargets];
+}
+
+- (void)setFrameProcessingCompletionBlock:(void (^)(GPUImageOutput *, CMTime))frameProcessingCompletionBlock;
+{
+    [_terminalFilter setFrameProcessingCompletionBlock:frameProcessingCompletionBlock];
+}
+
+- (void (^)(GPUImageOutput *, CMTime))frameProcessingCompletionBlock;
+{
+    return [_terminalFilter frameProcessingCompletionBlock];
 }
 
 #pragma mark -
