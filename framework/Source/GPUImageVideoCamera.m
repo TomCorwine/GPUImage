@@ -460,6 +460,9 @@
 
 - (void)captureOutput:(AVCaptureOutput *)captureOutput didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection
 {
+	if ([UIApplication sharedApplication].applicationState != UIApplicationStateActive)
+		return;
+	
 	//This may help keep memory footprint low
     @autoreleasepool {
 
