@@ -12,6 +12,8 @@
 		return nil;
     }
     
+    secondProgramUniformStateRestorationBlocks = [NSMutableDictionary dictionaryWithCapacity:10];
+
     runSynchronouslyOnVideoProcessingQueue(^{
         [GPUImageOpenGLESContext useImageProcessingContext];
 
@@ -75,31 +77,44 @@
 #pragma mark -
 #pragma mark Manage the output texture
 
-- (void)initializeOutputTexture;
+- (void)initializeSecondOutputTextureIfNeeded;
 {
-    [super initializeOutputTexture];
-
+    if ([GPUImageOpenGLESContext supportsFastTextureUpload] && preparedToCaptureImage)
+    {
+        return;
+    }
+    
     runSynchronouslyOnVideoProcessingQueue(^{
         [GPUImageOpenGLESContext useImageProcessingContext];
-
-        glGenTextures(1, &secondFilterOutputTexture);
-        glBindTexture(GL_TEXTURE_2D, secondFilterOutputTexture);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glBindTexture(GL_TEXTURE_2D, 0);
+        
+        if (!secondFilterOutputTexture)
+        {
+            glGenTextures(1, &secondFilterOutputTexture);
+            glBindTexture(GL_TEXTURE_2D, secondFilterOutputTexture);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glBindTexture(GL_TEXTURE_2D, 0);
+        }
     });
 }
 
 - (void)deleteOutputTexture;
 {
-    [super deleteOutputTexture];
-    
-    if (secondFilterOutputTexture)
+    if (outputTexture)
     {
-        glDeleteTextures(1, &secondFilterOutputTexture);
-        secondFilterOutputTexture = 0;
+        glDeleteTextures(1, &outputTexture);
+        outputTexture = 0;
+    }
+
+    if (!([GPUImageOpenGLESContext supportsFastTextureUpload] && preparedToCaptureImage))
+    {
+        if (secondFilterOutputTexture)
+        {
+            glDeleteTextures(1, &secondFilterOutputTexture);
+            secondFilterOutputTexture = 0;
+        }
     }
 }
 
@@ -111,15 +126,18 @@
     runSynchronouslyOnVideoProcessingQueue(^{
         [GPUImageOpenGLESContext useImageProcessingContext];
 
-        if ([GPUImageOpenGLESContext supportsFastTextureUpload] && preparedToCaptureImage)
+        if (!filterFramebuffer)
         {
-            preparedToCaptureImage = NO;
-            [super createFilterFBOofSize:currentFBOSize];
-            preparedToCaptureImage = YES;
-        }
-        else
-        {
-            [super createFilterFBOofSize:currentFBOSize];
+            if ([GPUImageOpenGLESContext supportsFastTextureUpload] && preparedToCaptureImage)
+            {
+                preparedToCaptureImage = NO;
+                [super createFilterFBOofSize:currentFBOSize];
+                preparedToCaptureImage = YES;
+            }
+            else
+            {
+                [super createFilterFBOofSize:currentFBOSize];
+            }
         }
         
         glGenFramebuffers(1, &secondFilterFramebuffer);
@@ -182,6 +200,7 @@
         }
         else
         {
+            [self initializeSecondOutputTextureIfNeeded];
             glBindTexture(GL_TEXTURE_2D, secondFilterOutputTexture);
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (int)currentFBOSize.width, (int)currentFBOSize.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, secondFilterOutputTexture, 0);
@@ -197,20 +216,88 @@
     });
 }
 
+- (void)recreateFilterFBO
+{
+    cachedMaximumOutputSize = CGSizeZero;
+    
+    [self destroyFilterFBO];
+    [self deleteOutputTexture];
+//    
+//    [self setFilterFBO];
+//    [self setSecondFilterFBO];
+}
+
 - (void)destroyFilterFBO;
 {
-    [super destroyFilterFBO];
+    runSynchronouslyOnVideoProcessingQueue(^{
+        [GPUImageOpenGLESContext useImageProcessingContext];
+        
+        if (filterFramebuffer)
+        {
+            glDeleteFramebuffers(1, &filterFramebuffer);
+            filterFramebuffer = 0;
+        }
+
+        if (secondFilterFramebuffer)
+        {
+            glDeleteFramebuffers(1, &secondFilterFramebuffer);
+            secondFilterFramebuffer = 0;
+        }	
+        
+        if (filterTextureCache != NULL)
+        {
+            CFRelease(renderTarget);
+            renderTarget = NULL;
+            
+            if (renderTexture)
+            {
+                CFRelease(renderTexture);
+                renderTexture = NULL;
+            }
+            
+            CVOpenGLESTextureCacheFlush(filterTextureCache, 0);
+            CFRelease(filterTextureCache);
+            filterTextureCache = NULL;
+        }
+    });
+}
+
+- (void)setFilterFBO;
+{
+    if (!filterFramebuffer)
+    {
+        CGSize currentFBOSize = [self sizeOfFBO];
+        if ([GPUImageOpenGLESContext supportsFastTextureUpload] && preparedToCaptureImage)
+        {
+            preparedToCaptureImage = NO;
+            [super createFilterFBOofSize:currentFBOSize];
+            preparedToCaptureImage = YES;
+        }
+        else
+        {
+            [super createFilterFBOofSize:currentFBOSize];
+        }
+        [super setupFilterForSize:currentFBOSize];
+    }
     
-    if (secondFilterFramebuffer)
-	{
-		glDeleteFramebuffers(1, &secondFilterFramebuffer);
-		secondFilterFramebuffer = 0;
-	}	
+    glBindFramebuffer(GL_FRAMEBUFFER, filterFramebuffer);
+    
+    CGSize currentFBOSize = [self sizeOfFBO];
+    glViewport(0, 0, (int)currentFBOSize.width, (int)currentFBOSize.height);
 }
 
 - (void)setSecondFilterFBO;
 {
+    if (!secondFilterFramebuffer)
+    {
+        CGSize currentFBOSize = [self sizeOfFBO];
+        [self createFilterFBOofSize:currentFBOSize];
+        [self setupFilterForSize:currentFBOSize];
+    }
+    
     glBindFramebuffer(GL_FRAMEBUFFER, secondFilterFramebuffer);
+    CGSize currentFBOSize = [self sizeOfFBO];
+    glViewport(0, 0, (int)currentFBOSize.width, (int)currentFBOSize.height);
 
 //    CGSize currentFBOSize = [self sizeOfFBO];
 //    glViewport(0, 0, (int)currentFBOSize.width, (int)currentFBOSize.height);
@@ -250,27 +337,84 @@
     
     glVertexAttribPointer(secondFilterPositionAttribute, 2, GL_FLOAT, 0, 0, vertices);
 	glVertexAttribPointer(secondFilterTextureCoordinateAttribute, 2, GL_FLOAT, 0, 0, [[self class] textureCoordinatesForRotation:kGPUImageNoRotation]);
-    
+
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+    // Release the first FBO early
+    if (shouldConserveMemoryForNextFrame)
+    {
+        [firstTextureDelegate textureNoLongerNeededForTarget:self];
+
+        glDeleteFramebuffers(1, &filterFramebuffer);
+        filterFramebuffer = 0;
+        
+        if (outputTexture)
+        {
+            glDeleteTextures(1, &outputTexture);
+            outputTexture = 0;
+        }
+        
+        shouldConserveMemoryForNextFrame = NO;
+    }
+}
+
+// Clear this out because I want to release the input texture as soon as the first pass is finished, not just after the whole rendering has completed
+- (void)releaseInputTexturesIfNeeded;
+{
 }
 
 - (void)prepareForImageCapture;
 {
-    preparedToCaptureImage = YES;
-    
-    if ([GPUImageOpenGLESContext supportsFastTextureUpload])
+    if (preparedToCaptureImage)
     {
-        if (secondFilterOutputTexture)
+        return;
+    }
+    
+    runSynchronouslyOnVideoProcessingQueue(^{
+        preparedToCaptureImage = YES;
+        
+        if ([GPUImageOpenGLESContext supportsFastTextureUpload])
         {
-            runSynchronouslyOnVideoProcessingQueue(^{
+            if (secondFilterOutputTexture)
+            {
                 [GPUImageOpenGLESContext useImageProcessingContext];
 
                 glDeleteTextures(1, &secondFilterOutputTexture);
                 secondFilterOutputTexture = 0;
-            });
+            }
         }
-    }
+    });
 }
 
+- (void)setAndExecuteUniformStateCallbackAtIndex:(GLint)uniform forProgram:(GLProgram *)shaderProgram toBlock:(dispatch_block_t)uniformStateBlock;
+{
+    if (shaderProgram == filterProgram)
+    {
+        [uniformStateRestorationBlocks setObject:[uniformStateBlock copy] forKey:[NSNumber numberWithInt:uniform]];
+    }
+    else
+    {
+        [secondProgramUniformStateRestorationBlocks setObject:[uniformStateBlock copy] forKey:[NSNumber numberWithInt:uniform]];
+    }
+    uniformStateBlock();
+}
+
+- (void)setUniformsForProgramAtIndex:(NSUInteger)programIndex;
+{
+    if (programIndex == 0)
+    {
+        [uniformStateRestorationBlocks enumerateKeysAndObjectsUsingBlock:^(id key, id obj, BOOL *stop){
+            dispatch_block_t currentBlock = obj;
+            currentBlock();
+        }];
+    }
+    else
+    {
+        [secondProgramUniformStateRestorationBlocks enumerateKeysAndObjectsUsingBlock:^(id key, id obj, BOOL *stop){
+            dispatch_block_t currentBlock = obj;
+            currentBlock();
+        }];
+    }
+}
 
 @end

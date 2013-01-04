@@ -76,6 +76,10 @@
             // Need to remove the initially created texture
             [self deleteOutputTexture];
         }
+        else
+        {
+            [self initializeOutputTextureIfNeeded];
+        }
     });
     
 	// Grab the back-facing or front-facing camera
@@ -161,6 +165,11 @@
     if (audioProcessingQueue != NULL)
     {
         dispatch_release(audioProcessingQueue);
+    }
+    
+    if (frameRenderingSemaphore != NULL)
+    {
+        dispatch_release(frameRenderingSemaphore);
     }
 }
 
@@ -485,45 +494,42 @@
 	if ([UIApplication sharedApplication].applicationState != UIApplicationStateActive)
 		return;
 
-	//This may help keep memory footprint low
-    @autoreleasepool {
-		__unsafe_unretained GPUImageVideoCamera *weakSelf = self;
-		if (captureOutput == audioOutput)
-		{
-			//        if (dispatch_semaphore_wait(frameRenderingSemaphore, DISPATCH_TIME_NOW) != 0)
-			//        {
-			//            return;
-			//        }
+    __unsafe_unretained GPUImageVideoCamera *weakSelf = self;
+    if (captureOutput == audioOutput)
+    {
+//        if (dispatch_semaphore_wait(frameRenderingSemaphore, DISPATCH_TIME_NOW) != 0)
+//        {
+//            return;
+//        }
 
-			CFRetain(sampleBuffer);
-			dispatch_async([GPUImageOpenGLESContext sharedOpenGLESQueue], ^{
-				[weakSelf processAudioSampleBuffer:sampleBuffer];
-				CFRelease(sampleBuffer);
-				//            dispatch_semaphore_signal(frameRenderingSemaphore);
-			});
-		}
-		else
-		{
-			if (dispatch_semaphore_wait(frameRenderingSemaphore, DISPATCH_TIME_NOW) != 0)
-			{
-				return;
-			}
+        CFRetain(sampleBuffer);
+        runAsynchronouslyOnVideoProcessingQueue(^{
+            [weakSelf processAudioSampleBuffer:sampleBuffer];
+            CFRelease(sampleBuffer);
+//            dispatch_semaphore_signal(frameRenderingSemaphore);
+        });
+    }
+    else
+    {
+        if (dispatch_semaphore_wait(frameRenderingSemaphore, DISPATCH_TIME_NOW) != 0)
+        {
+            return;
+        }
 
-			CFRetain(sampleBuffer);
-			dispatch_async([GPUImageOpenGLESContext sharedOpenGLESQueue], ^{
-				//Feature Detection Hook.
-				if (weakSelf.delegate)
-				{
-					[weakSelf.delegate willOutputSampleBuffer:sampleBuffer];
-				}
-
-				[weakSelf processVideoSampleBuffer:sampleBuffer];
-
-				CFRelease(sampleBuffer);
-				dispatch_semaphore_signal(frameRenderingSemaphore);
-			});
-		}
-	}
+        CFRetain(sampleBuffer);
+        runAsynchronouslyOnVideoProcessingQueue(^{
+            //Feature Detection Hook.
+            if (weakSelf.delegate)
+            {
+                [weakSelf.delegate willOutputSampleBuffer:sampleBuffer];
+            }
+            
+            [weakSelf processVideoSampleBuffer:sampleBuffer];
+            
+            CFRelease(sampleBuffer);
+            dispatch_semaphore_signal(frameRenderingSemaphore);
+        });
+    }
 }
 
 #pragma mark -
