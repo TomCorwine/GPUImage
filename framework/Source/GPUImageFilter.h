@@ -53,19 +53,26 @@ typedef struct GPUMatrix3x3 GPUMatrix3x3;
     GLfloat backgroundColorRed, backgroundColorGreen, backgroundColorBlue, backgroundColorAlpha;
     
     BOOL preparedToCaptureImage;
-    
+
+    // Texture caches are an iOS-specific capability
+#if TARGET_IPHONE_SIMULATOR || TARGET_OS_IPHONE
     CVOpenGLESTextureCacheRef filterTextureCache;
     CVPixelBufferRef renderTarget;
     CVOpenGLESTextureRef renderTexture;
+#else
+#endif
     
     CGSize currentFilterSize;
     GPUImageRotationMode inputRotation;
+    
+    BOOL currentlyReceivingMonochromeInput;
     
     NSMutableDictionary *uniformStateRestorationBlocks;
 }
 
 @property(readonly) CVPixelBufferRef renderTarget;
 @property(readwrite, nonatomic) BOOL preventRendering;
+@property(readwrite, nonatomic) BOOL currentlyReceivingMonochromeInput;
 
 /// @name Initialization and teardown
 

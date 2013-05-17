@@ -1,7 +1,14 @@
 #import <Foundation/Foundation.h>
 #import <AVFoundation/AVFoundation.h>
-#import "GPUImageOpenGLESContext.h"
+#import "GPUImageContext.h"
 #import "GPUImageOutput.h"
+
+/** Protocol for getting Movie played callback.
+ */
+@protocol GPUImageMovieDelegate <NSObject>
+
+- (void)didCompletePlayingMovie;
+@end
 
 /** Source object for filtering movies
  */
@@ -18,6 +25,10 @@
  */
 @property(readwrite, nonatomic) BOOL playAtActualSpeed;
 
+/** This is used to send the delete Movie did complete playing alert
+ */
+@property (readwrite, nonatomic, assign) id <GPUImageMovieDelegate>delegate;
+
 /// @name Initialization and teardown
 - (id)initWithAsset:(AVAsset *)asset;
 - (id)initWithURL:(NSURL *)url;
@@ -29,6 +40,7 @@
 - (void)readNextAudioSampleFromOutput:(AVAssetReaderTrackOutput *)readerAudioTrackOutput;
 - (void)startProcessing;
 - (void)endProcessing;
+- (void)cancelProcessing;
 - (void)processMovieFrame:(CMSampleBufferRef)movieSampleBuffer; 
 
 @end
